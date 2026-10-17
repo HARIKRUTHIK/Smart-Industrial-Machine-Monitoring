@@ -1,0 +1,23 @@
+# Python virtual environment & bytecode
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Node & Frontend
+node_modules/
+build/
+dist/
+npm-debug.log*
+
+# Embedded artifacts
+*.hex
+*.bin
+*.elf
+.pio/
+
+# OS & Editor
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
