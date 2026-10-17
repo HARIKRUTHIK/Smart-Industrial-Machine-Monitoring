@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Smart Industrial Machine Monitoring & Predictive Maintenance</title>
+    <style>
+        :root {
+            --bg-primary: #0a0e17;
+            --bg-card: #111827;
+            --border-color: #1f2937;
+            --text-primary: #f3f4f6;
+            --text-secondary: #9ca3af;
+            --accent-blue: #3b82f6;
+            --accent-green: #10b981;
+            --accent-amber: #f59e0b;
+            --accent-red: #ef4444;
+        }
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; }
+        body { background: var(--bg-primary); color: var(--text-primary); padding: 24px; min-height: 100vh; }
+        header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid var(--border-color); }
+        h1 { font-size: 22px; font-weight: 600; letter-spacing: -0.5px; }
+        .subtitle { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+        .status-pill { display: inline-flex; align-items: center; gap: 8px; padding: 6px 12px; border-radius: 9999px; font-size: 12px; font-weight: 500; background: #1f2937; }
+        .dot { width: 8px; height: 8px; border-radius: 50%; background: var(--accent-green); }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(340px, 1fr)); gap: 20px; }
+        .card { background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 12px; padding: 20px; display: flex; flex-direction: column; gap: 16px; }
+        .card-header { display: flex; justify-content: space-between; align-items: flex-start; }
+        .machine-id { font-size: 11px; text-transform: uppercase; color: var(--accent-blue); letter-spacing: 0.5px; font-weight: 600; }
+        .machine-name { font-size: 16px; font-weight: 600; margin-top: 2px; }
+        .badge { padding: 4px 10px; border-radius: 6px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+        .badge-normal { background: rgba(16, 185, 129, 0.15); color: var(--accent-green); border: 1px solid rgba(16, 185, 129, 0.3); }
+        .badge-warning { background: rgba(245, 158, 11, 0.15); color: var(--accent-amber); border: 1px solid rgba(245, 158, 11, 0.3); }
+        .badge-critical { background: rgba(239, 68, 68, 0.15); color: var(--accent-red); border: 1px solid rgba(239, 68, 68, 0.3); }
+        .metrics-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+        .metric-box { background: rgba(31, 41, 55, 0.5); padding: 10px 14px; border-radius: 8px; }
+        .metric-label { font-size: 11px; color: var(--text-secondary); text-transform: uppercase; }
+        .metric-val { font-size: 18px; font-weight: 600; margin-top: 4px; font-family: monospace; }
+        .spectrum-container { height: 90px; background: #0d121d; border-radius: 8px; padding: 8px; display: flex; align-items: flex-end; gap: 3px; }
+        .bar { flex: 1; background: var(--accent-blue); border-radius: 2px 2px 0 0; min-height: 4px; transition: height 0.3s ease; }
+        .card-footer { font-size: 11px; color: var(--text-secondary); display: flex; justify-content: space-between; border-top: 1px solid var(--border-color); padding-top: 12px; }
+    </style>
+</head>
+<body>
+    <header>
+        <div>
+            <h1>Smart Industrial Machine Monitoring & Telemetry</h1>
+            <div class="subtitle">On-Device 128-pt FFT Vibration Analysis & Isolation Forest Anomaly Detection</div>
+        </div>
+        <div class="status-pill" id="connPill">
+            <span class="dot" id="connDot"></span>
+            <span id="connText">Connected to Telemetry Stream</span>
+        </div>
+    </header>
+
+    <div class="grid" id="machineGrid"></div>
+
+    <script>
+        const machines = [
+            { id: "machine_0", name: "CNC Milling Center", type: "CNC Milling", freq: 24.8, mag: 0.12, sTemp: 42.1, aTemp: 26.5, hum: 54.2, status: "NORMAL", score: 0.11 },
+            { id: "machine_1", name: "Heavy Turning Lathe", type: "Lathe", freq: 25.1, mag: 0.14, sTemp: 43.4, aTemp: 26.8, hum: 53.8, status: "NORMAL", score: 0.14 },
+            { id: "machine_2", name: "Coolant Centrifugal Pump", type: "Centrifugal Pump", freq: 29.5, mag: 0.28, sTemp: 48.7, aTemp: 27.2, hum: 56.1, status: "WARNING", score: 0.42 },
+            { id: "machine_3", name: "Spindle Induction Motor", type: "Induction Motor", freq: 24.9, mag: 0.13, sTemp: 41.8, aTemp: 26.3, hum: 55.0, status: "NORMAL", score: 0.09 },
+            { id: "machine_4", name: "Pneumatic Air Compressor", type: "Compressor", freq: 38.2, mag: 0.45, sTemp: 56.2, aTemp: 28.1, hum: 51.5, status: "CRITICAL", score: 0.78 },
+            { id: "machine_5", name: "Planetary Reduction Gearbox", type: "Gearbox", freq: 25.0, mag: 0.15, sTemp: 44.0, aTemp: 26.9, hum: 54.7, status: "NORMAL", score: 0.15 }
+        ];
+
+        function renderMachines() {
+            const container = document.getElementById("machineGrid");
+            container.innerHTML = "";
+            machines.forEach((m, idx) => {
+                const badgeClass = m.status === "NORMAL" ? "badge-normal" : (m.status === "WARNING" ? "badge-warning" : "badge-critical");
+                
+                // Generate pseudo-FFT spectrum bars with peak at dominant frequency
+                let barsHtml = "";
+                for (let b = 0; b < 24; b++) {
+                    const dist = Math.abs(b - (m.freq / 2.0));
+                    const h = Math.max(8, Math.min(75, Math.round(75 / (1.0 + dist * 1.2) * (m.mag / 0.15))));
+                    barsHtml += `<div class="bar" style="height: ${h}px;"></div>`;
+                }
+
+                const card = document.createElement("div");
+                card.className = "card";
+                card.innerHTML = `
+                    <div class="card-header">
+                        <div>
+                            <div class="machine-id">${m.id}</div>
+                            <div class="machine-name">${m.name}</div>
+                        </div>
+                        <span class="badge ${badgeClass}">${m.status}</span>
+                    </div>
+                    <div class="metrics-grid">
+                        <div class="metric-box">
+                            <div class="metric-label">Dominant Frequency</div>
+                            <div class="metric-val">${m.freq.toFixed(1)} <span style="font-size:12px;color:#9ca3af;">Hz</span></div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Vibration RMS</div>
+                            <div class="metric-val">${m.mag.toFixed(2)} <span style="font-size:12px;color:#9ca3af;">g</span></div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Surface Temperature</div>
+                            <div class="metric-val">${m.sTemp.toFixed(1)} <span style="font-size:12px;color:#9ca3af;">°C</span></div>
+                        </div>
+                        <div class="metric-box">
+                            <div class="metric-label">Ambient Temp / Hum</div>
+                            <div class="metric-val">${m.aTemp.toFixed(1)}°C / ${m.hum.toFixed(0)}%</div>
+                        </div>
+                    </div>
+                    <div>
+                        <div style="font-size: 11px; color: var(--text-secondary); margin-bottom: 6px;">128-Point On-Device FFT Vibration Spectrum</div>
+                        <div class="spectrum-container">${barsHtml}</div>
+                    </div>
+                    <div class="card-footer">
+                        <span>Isolation Forest Anomaly Score: <strong>${m.score.toFixed(2)}</strong></span>
+                        <span>Updated: just now</span>
+                    </div>
+                `;
+                container.appendChild(card);
+            });
+        }
+
+        renderMachines();
+
+        // Connect to FastAPI SSE Stream
+        try {
+            const evtSource = new EventSource("http://localhost:8000/api/telemetry/stream");
+            evtSource.onmessage = function(event) {
+                const data = JSON.parse(event.data);
+                Object.keys(data).forEach(id => {
+                    const idx = machines.findIndex(m => m.id === id);
+                    if (idx !== -1) {
+                        machines[idx].freq = data[id].dominant_freq;
+                        machines[idx].mag = data[id].peak_mag;
+                        machines[idx].sTemp = data[id].surface_temp;
+                        machines[idx].status = data[id].anomaly_status;
+                        machines[idx].score = data[id].anomaly_score;
+                    }
+                });
+                renderMachines();
+            };
+            evtSource.onerror = function() {
+                document.getElementById("connDot").style.background = "#f59e0b";
+                document.getElementById("connText").innerText = "Simulation Mode (API Offline)";
+            };
+        } catch (e) {
+            console.log("Local simulation fallback");
+        }
+    </script>
+</body>
+</html>
